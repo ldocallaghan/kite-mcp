@@ -369,7 +369,7 @@ pub fn table_info(name: &str) -> TableInfo {
         "exports_change" | "imports_change" => (
             "ratio",
             "ratio of counterfactual to baseline, 1 = no change",
-            format!("{} divided by its baseline. Both include domestic trade (the country with itself), see R/process_results.R:205-212.", name.trim_end_matches("_change")),
+            format!("{} divided by its baseline. Both include domestic trade (the country with itself).", name.trim_end_matches("_change")),
             "R/process_results.R:205-212",
         ),
         n if n.ends_with("_change") => (

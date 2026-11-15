@@ -14,7 +14,7 @@ Keeping R alive matters because starting it costs more than solving the example.
 
 Two processes also isolate failures. If a solve hangs, the server stops the worker when the timeout passes (120 s by default), reports a timeout to the client and starts a new worker for the next request. The tests in `tests/worker_restart.rs` cover a worker that hangs, one that exits, one that writes a malformed reply and one that answers the wrong request. The worker keeps no state between requests, so a restart loses nothing.
 
-An R web framework such as plumber would have put the HTTP layer, the validation and the process in R itself. A hang inside a solve would then stop the server, and the MCP side would still need writing. The REST interface of kite-mcp (`kite-mcp serve --http`, if built) runs the same Rust handlers as the MCP tools.
+An R web framework such as plumber would have put the HTTP layer, the validation and the process in R itself. A hang inside a solve would then stop the server, and the MCP side would still need writing. The REST interface of kite-mcp (`kite-mcp serve --http`) runs the same Rust handlers as the MCP tools, and its OpenAPI document is generated from the same Rust types as the tool schemas.
 
 ## Typed input, no evaluation
 
@@ -46,7 +46,7 @@ kite-mcp treats anything other than TRUE as `not_converged`. `run_scenario` then
 
 ## Synthetic baselines are not equilibria
 
-The baselines kite-mcp can build use the construction of KITE's example, which draws value added independently of the trade and production shares. Such a baseline is not an equilibrium of the models. In KITE's example baseline, factor share times output is 0.79, 0.98 and 1.27 times value added for c1, c2 and c3. A run with no policy change at all therefore moves the economy: under `caliendo_parro_2015` the empty scenario gives `welfare_change` of 0.902, 0.996 and 1.092. The example's tariff war gives 0.852, 0.921 and 1.145, so most of c3's reported gain is this adjustment.
+The baselines kite-mcp can build use the construction of KITE's example, which draws value added independently of the trade and production shares. Such a baseline does not satisfy the models' equilibrium conditions. In KITE's example baseline, factor share times output is 0.79, 0.98 and 1.27 times value added for c1, c2 and c3. A run with no policy change at all therefore moves the economy: under `caliendo_parro_2015` the empty scenario gives `welfare_change` of 0.902, 0.996 and 1.092. The example's tariff war gives 0.852, 0.921 and 1.145, so most of c3's reported gain is this adjustment.
 
 kite-mcp returns KITE's numbers as they are. It says this in `describe_baseline` and next to every run on a synthetic baseline. A policy's own effect on a synthetic baseline is its difference from a run with an empty scenario, which `compare_runs` gives.
 
