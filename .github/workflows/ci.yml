@@ -21,7 +21,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       # conformance tests skip themselves here; the next job runs them with R
-      - run: cargo test
+      - run: cargo test --all-targets
 
   conformance:
     name: Conformance with KITE and reproduce scripts
