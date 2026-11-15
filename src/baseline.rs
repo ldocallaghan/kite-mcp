@@ -653,7 +653,6 @@ pub fn value_map(t: &Table) -> HashMap<Vec<String>, f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::num::HexF64;
 
     fn t(dims: &[&str], rows: &[(&[&str], f64)]) -> Value {
         let rows: Vec<(Vec<String>, f64)> = rows
@@ -812,6 +811,5 @@ mod tests {
                 .iter()
                 .any(|n| n.name == "carbon_intensity")
         );
-        let _ = HexF64(0.0);
     }
 }

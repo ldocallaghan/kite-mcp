@@ -2,7 +2,56 @@
 
 kite-mcp is an independent, unofficial server that lets a language model run trade policy scenarios in [KITE](https://github.com/julianhinz/KITE), the open-source trade model suite of the Kiel Institute for the World Economy, through the Model Context Protocol (MCP). It has no affiliation to or endorsement from the Kiel Institute. Every number it returns is the number KITE computes for the same inputs, bit for bit, and every run comes with an R script that reproduces it with KITE alone.
 
-<!-- DEMO -->
+## Demo
+
+A question put to a language model in an MCP client, through the server's prompt `analyse_trade_policy_scenario` (full transcript: `eval/transcripts/q01.jsonl`):
+
+> On the synthetic_example baseline, use caliendo_parro_2015 to find what happens to each country's welfare if c1 and c2 put 20% tariffs on all of each other's goods.
+
+The model called `list_models`, `describe_baseline` and then:
+
+```json
+{"model": "caliendo_parro_2015", "baseline": "synthetic_example",
+ "scenario": {"tariff_new": [{"origin": "c1", "destination": "c2", "value": 1.2},
+                             {"origin": "c2", "destination": "c1", "value": 1.2}]}}
+```
+
+Its answer, shortened where marked:
+
+> **Convergence** (`run_scenario`, info block)
+> - **Status:** converged (`convergence: true`)
+> - **Iterations:** 22
+> - **Criterion:** 0.00009757295662195745, below the tolerance of 1e-4
+>
+> **Welfare change by country** (`run_scenario`, table `welfare_change`)
+>
+> | Country | welfare_change | percent_change_derived* |
+> |---|---|---|
+> | c1 | 0.8516332754471132 | -14.83667245528868 |
+> | c2 | 0.9208435240405587 | -7.915647595944131 |
+> | c3 | 1.1449932563292378 | 14.499325632923776 |
+>
+> \* `percent_change_derived` was computed by kite-mcp as (welfare_change − 1) × 100. It is not a KITE output.
+>
+> [...] **Policy and adjustment are mixed together:** the baseline's value added was drawn separately from its trade and production shares [...] These welfare figures therefore combine the effect of the tariffs with the model moving the baseline to an equilibrium.
+>
+> **Reproduce:** `kite://runs/r2f481dc1e52a/reproduce.R`
+
+Every number in the answer is a value KITE returned, or one kite-mcp derived and labelled; `eval/results.md` checks each against direct calls to KITE. The reproduce script, without the baseline construction it also contains:
+
+```r
+tariff_new <- data.table::copy(ic$tariff)
+tariff_new[origin == "c1" & destination == "c2", value := 1.2]
+tariff_new[origin == "c2" & destination == "c1", value := 1.2]
+model_scenario <- list(tariff_new = tariff_new)
+settings <- list(verbose = 0L, tolerance = 0.0001, vfactor = 0.1, max_iterations = 200.0)
+
+result <- update_equilibrium(model = caliendo_parro_2015, initial_conditions = ic,
+                             model_scenario = model_scenario, settings = settings)
+processed <- process_results(result)
+```
+
+`Rscript --vanilla reproduce.R` installs KITE at the recorded commit if needed and prints every table; the conformance tests check that they are the same bits.
 
 ## Install
 

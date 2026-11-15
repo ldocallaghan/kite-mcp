@@ -2,7 +2,6 @@
 //! is missing.
 
 use crate::catalogue::{KITE_COMMIT, KITE_VERSION};
-use crate::protocol::Value;
 use crate::service::{self, App, RunScenarioInput};
 use crate::worker::{Worker, WorkerConfig};
 use std::process::Command;
@@ -152,7 +151,6 @@ pub async fn run(timeout: Duration) -> i32 {
         ),
         Err(e) => r.fail("example solve", &e.to_string(), "see the error above"),
     }
-    let _ = Value::Logical(true);
 
     if r.failures == 0 {
         println!("\nAll checks passed.");

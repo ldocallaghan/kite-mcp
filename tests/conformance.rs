@@ -12,7 +12,7 @@ use rmcp::service::RunningService;
 use rmcp::transport::TokioChildProcess;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 fn enabled() -> bool {
@@ -655,5 +655,4 @@ fn r_reads_rust_shortest_decimals_and_hex_literals_to_the_same_bits() {
     let check = repo().join("tests/conformance/parse_check.R");
     let out = rscript(&[check.to_str().unwrap(), p.to_str().unwrap()], &[]);
     eprint!("{}", String::from_utf8_lossy(&out.stdout));
-    let _ = Path::new("");
 }
