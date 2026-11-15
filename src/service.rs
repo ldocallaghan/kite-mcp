@@ -532,8 +532,6 @@ pub struct RunScenarioOutput {
 }
 
 fn cache_key(commit: &str, model: &str, b: &Baseline, built: &scenario::Built) -> String {
-    let scenario: Vec<&crate::protocol::Named> = Vec::new();
-    let _ = scenario;
     let v = serde_json::json!({
         "kite_commit": commit,
         "model": model,
@@ -674,6 +672,25 @@ pub async fn run_scenario(
         computed_at: computed_at.clone(),
         cache_key: key,
     };
+    // which literals R's parser reads to the same bits as their shortest decimal
+    let literals = reproduce::literal_values(&built.scenario, &built.settings);
+    let decimals: Vec<String> = literals
+        .iter()
+        .map(|x| crate::num::shortest_decimal(*x))
+        .collect();
+    let read: ReadDecimals = app
+        .worker
+        .call_typed(
+            "read_decimals",
+            &serde_json::json!({ "decimals": decimals }),
+        )
+        .await?;
+    let r_exact: std::collections::HashSet<u64> = literals
+        .iter()
+        .zip(&read.doubles)
+        .filter(|(x, r)| x.to_bits() == r.0.to_bits())
+        .map(|(x, _)| x.to_bits())
+        .collect();
     let script = reproduce::script(&reproduce::ScriptInput {
         run_id: &run_id,
         kite_mcp_version: KITE_MCP_VERSION,
@@ -684,6 +701,7 @@ pub async fn run_scenario(
         baseline: &b,
         scenario: &built.scenario,
         settings: &built.settings,
+        r_exact: &r_exact,
     });
     let run = Arc::new(Run {
         id: run_id.clone(),
@@ -696,6 +714,11 @@ pub async fn run_scenario(
     });
     app.runs.write().await.insert(run_id, run.clone());
     Ok(run_output(&run, false))
+}
+
+#[derive(Deserialize)]
+struct ReadDecimals {
+    doubles: Vec<crate::num::HexF64>,
 }
 
 pub fn reproduce_uri(id: &str) -> String {

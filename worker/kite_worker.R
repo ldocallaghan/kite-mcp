@@ -191,11 +191,24 @@ kite_mcp_documentation <- function(params) {
   list(topic = topic, text = paste(text, collapse = "\n"))
 }
 
+# How R reads decimal numerals: as.numeric() uses R_strtod, the routine R's
+# parser uses for numeric literals. R_strtod is not correctly rounded for
+# every input, so the server asks before writing a decimal into a reproduce
+# script. The strings are converted to numbers; nothing is evaluated.
+kite_mcp_read_decimals <- function(params) {
+  d <- vapply(params$decimals, as.character, character(1), USE.NAMES = FALSE)
+  if (!all(grepl("^-?[0-9]+(\\.[0-9]+)?(e-?[0-9]+)?$", d))) {
+    kite_mcp_protocol_error("`decimals` must be decimal numerals such as 1.2 or 1e-10")
+  }
+  list(doubles = as.list(kite_mcp_f64_to_hex(as.numeric(d))))
+}
+
 kite_mcp_methods <- list(
   hello = kite_mcp_hello,
   synthetic_baseline = kite_mcp_synthetic,
   solve = kite_mcp_solve,
-  documentation = kite_mcp_documentation
+  documentation = kite_mcp_documentation,
+  read_decimals = kite_mcp_read_decimals
 )
 
 # ---- loop --------------------------------------------------------------------

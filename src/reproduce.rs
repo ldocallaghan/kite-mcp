@@ -4,6 +4,7 @@ use crate::baseline::{Baseline, Source};
 use crate::num::shortest_decimal;
 use crate::protocol::{ColumnData, Named, Table, Value};
 use crate::scenario::{BuiltVariable, Recipe};
+use std::collections::HashSet;
 use std::fmt::Write;
 
 /// The synthetic baseline construction, shared with the worker.
@@ -57,8 +58,35 @@ fn r_strings(v: &[String]) -> String {
     )
 }
 
-fn r_num(x: f64) -> String {
-    shortest_decimal(x)
+/// A double as an R numeric literal: the shortest decimal when R reads it to
+/// the same bits (`r_exact` holds those bit patterns, as the worker reported
+/// them), otherwise an exact hexadecimal literal.
+fn r_num(x: f64, r_exact: &HashSet<u64>) -> String {
+    if r_exact.contains(&x.to_bits()) {
+        shortest_decimal(x)
+    } else {
+        r_hex_literal(x)
+    }
+}
+
+/// Every double written as a literal into the script for this scenario and
+/// these settings, to be checked against R's reading of its decimal form.
+pub fn literal_values(scenario: &[BuiltVariable], settings: &[Named]) -> Vec<f64> {
+    let mut out = Vec::new();
+    for v in scenario {
+        match &v.recipe {
+            Recipe::Table { overrides, .. } => out.extend(overrides.iter().map(|o| o.1)),
+            Recipe::Double(x) => out.push(*x),
+            _ => {}
+        }
+    }
+    for n in settings {
+        if let Value::Double(x) = &n.value {
+            out.push(x.0);
+        }
+    }
+    out.retain(|x| x.is_finite());
+    out
 }
 
 /// A table written out in full; doubles as hexadecimal literals.
@@ -112,6 +140,8 @@ pub struct ScriptInput<'a> {
     pub baseline: &'a Baseline,
     pub scenario: &'a [BuiltVariable],
     pub settings: &'a [Named],
+    /// Bit patterns whose shortest decimal R reads exactly
+    pub r_exact: &'a HashSet<u64>,
 }
 
 pub fn script(i: &ScriptInput) -> String {
@@ -156,6 +186,26 @@ pub fn script(i: &ScriptInput) -> String {
         i.kite_version, i.kite_commit
     );
     let _ = writeln!(s, "#");
+    let mut hex_values: Vec<f64> = literal_values(i.scenario, i.settings)
+        .into_iter()
+        .filter(|x| !i.r_exact.contains(&x.to_bits()))
+        .collect();
+    hex_values.dedup_by_key(|x| x.to_bits());
+    if !hex_values.is_empty() {
+        let _ = writeln!(
+            s,
+            "# Some numbers below are hexadecimal literals: R's parser reads their"
+        );
+        let _ = writeln!(
+            s,
+            "# shortest decimal form to a neighbouring double, so the exact value is"
+        );
+        let _ = writeln!(s, "# written instead:");
+        for x in &hex_values {
+            let _ = writeln!(s, "#   {} is {}", r_hex_literal(*x), shortest_decimal(*x));
+        }
+        let _ = writeln!(s, "#");
+    }
     let _ = writeln!(s, "# Run with: Rscript --vanilla reproduce.R");
     let _ = writeln!(
         s,
@@ -292,12 +342,12 @@ pub fn script(i: &ScriptInput) -> String {
                         "{}[{}, value := {}]",
                         v.name,
                         conds.join(" & "),
-                        r_num(*value)
+                        r_num(*value, i.r_exact)
                     );
                 }
             }
             Recipe::Double(x) => {
-                let _ = writeln!(s, "{} <- {}", v.name, r_num(*x));
+                let _ = writeln!(s, "{} <- {}", v.name, r_num(*x, i.r_exact));
             }
             Recipe::Strings(list) => {
                 let _ = writeln!(s, "{} <- {}", v.name, r_strings(list));
@@ -327,7 +377,7 @@ pub fn script(i: &ScriptInput) -> String {
         .map(|n| {
             let v = match &n.value {
                 Value::Integer(x) => format!("{x}L"),
-                Value::Double(x) => r_num(x.0),
+                Value::Double(x) => r_num(x.0, i.r_exact),
                 Value::String(x) => r_string(x),
                 Value::Logical(x) => {
                     if *x {
