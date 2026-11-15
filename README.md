@@ -165,7 +165,7 @@ runs everything that needs no R. With R and KITE installed:
 KITE_MCP_CONFORMANCE=1 cargo test --test conformance --test http -- --test-threads=1
 ```
 
-runs the conformance, reproduce-script and REST tests, and `Rscript -e 'testthat::test_dir("worker/tests/testthat")'` the worker's own tests. `eval/` holds ten questions put to a language model through this server, the transcripts, and a scorer that checks every number in each answer against direct KITE results (`eval/results.md`).
+runs the conformance, reproduce-script and REST tests, and `Rscript -e 'testthat::test_dir("worker/tests/testthat")'` the worker's own tests. `eval/` holds ten questions put to a language model through this server, the transcripts, and a scorer that checks every number in each answer against direct KITE results (`eval/results.md`). `eval/heldout/` holds five further questions whose answers were committed before a single run (`eval/heldout/results.md`). `DESIGN.md` says how kite-mcp was built and evaluated, and with which tools and model.
 
 ## Out of scope
 

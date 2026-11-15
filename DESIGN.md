@@ -58,6 +58,20 @@ kite-mcp returns KITE's numbers as they are. It says this in `describe_baseline`
 
 The protocol in `docs/worker-protocol.md` does not depend on R. A Julia worker would read JSON lines, build its model's inputs from the typed tables, solve, and write back the tables, the convergence block and its warnings. The server starts whatever program `WorkerConfig` names. The parts that are specific to KITE are the model catalogue and the scenario variables in `src/catalogue.rs` and `src/scenario.rs`; a second model suite would add its own entries there. No Julia worker is built.
 
+## How kite-mcp was built and evaluated
+
+kite-mcp was written on 15 November 2026 by Claude Code 2.1.322, Anthropic's coding agent, running the model Claude Opus 5.5 (`claude-opus-5-5`). It worked from a build specification by the repository's author, who set the scope, the result contract and the acceptance tests, made the decisions that came up during the build, and reviewed the result. The work ran on Windows 11 with WSL 2 (Ubuntu 22.04), Rust 1.97.1, R 4.6.2 from CRAN, KITE 26.10 at commit `5995dd1`, data.table 1.18.6.1, jsonlite 2.0.0, testthat, and Docker 29.5.3 with the `rocker/r-ver:4.6.2` image. The server uses rmcp 3.10.0, axum 0.8 and schemars 1.
+
+The order was the specification's. First a check of its premises: the example's convergence lines, timings, the rmcp version, and the meaning of every scenario variable read from KITE's source. Then the R worker and its tests, the Rust server, the conformance tests, the evaluation, and packaging. The conformance tests found three faults during the build, all described above: a scoping error in the test's own reference script, R's rounding of decimal literals, and a cache key without the baseline id.
+
+The evaluation used the same model as the build, `claude-opus-5-5`, through the Claude Code command line in headless mode (`claude -p`). It started from an empty working directory, had no built-in tools, and had this server as its only MCP server. Each question went through the server's prompt `analyse_trade_policy_scenario`. The answers come from direct calls to KITE (`eval/answers.R`), and a scorer (`examples/score_eval.rs`) checks every number in each answer against them within the rounding shown, and checks the three traps.
+
+Ten questions (`eval/`) were run five times. Each round that missed the bar led to changes in the prompt and tool descriptions only; the questions, answers and scorer stayed as first committed, and all ten were rerun after each change. Rounds 1 to 4 failed the bar on 4, 5, 2 and 1 questions, for reasons such as the model summing table rows itself, adding runs nobody asked for, and rounding a value wrongly. Round 5 had no unsupported numbers and all traps right. The git history keeps the transcripts of every round.
+
+Display values were then added. Five held-out questions (`eval/heldout/`), one on a generated baseline and one a trap, were written and their answers computed and committed before any run (commit `321be7b`). Each was run once with the final prompt, with no change afterwards: 95 numbers checked, none unsupported, and the trap handled (`eval/heldout/results.md`).
+
+What these results do not show: each question was answered once per round, and answers vary between runs. The model that answered is the model that wrote the server and its prompt. The scorer checks that numbers come from KITE's results; whether the prose around them is right was checked by reading the answers, not by the scorer.
+
 ## Left out
 
 - `.ice` initial-condition files. KITE plans to read them from version 26.11 (issue #19), and no format is published. The CSV loader is in one module, `src/baseline.rs`, where an `.ice` reader would go.
