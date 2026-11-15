@@ -36,7 +36,11 @@ kite-mcp does no arithmetic on KITE's results. It only moves them: from R to JSO
 
 The tests found two of them while being written. A data.table expression in the test's own reference script set a tariff to its existing value, and the run through the server differed in its iteration count (16 against 15). And the decimal problem above showed up as a 1-bit difference. Both would pass a comparison within 1e-6.
 
-The conformance test (`tests/conformance.rs`) runs eleven scenarios through a real kite-mcp process over MCP and compares every table of `process_results()` and the `info` block with a direct call to KITE, bit for bit: 501 tables and 17,394 values. It then runs each run's reproduce script in a fresh R session and requires the same bits again. The only numbers kite-mcp computes are named `*_derived`: the welfare percentage `(welfare_change - 1) * 100` and the differences of `compare_runs`. The tests check those against the same formula applied to KITE's values.
+The conformance test (`tests/conformance.rs`) runs eleven scenarios through a real kite-mcp process over MCP and compares every table of `process_results()` and the `info` block with a direct call to KITE, bit for bit: 501 tables and 17,394 values. It then runs each run's reproduce script in a fresh R session and requires the same bits again. The only numbers kite-mcp computes are named `*_derived` or `*_display`: the welfare percentage `(welfare_change - 1) * 100`, the differences of `compare_runs`, and display values. The tests check them against the same formula applied to KITE's values.
+
+## Display values
+
+Exact values are long: `0.8516332754471132`. In the evaluation's last rounds the prompt asked the model to copy them in full, which kept every number checkable and made the answers hard to read. Each exact number now comes with a display value: `welfare_change_display` is `0.8516`, and for a ratio `percent_change_display` is `-14.84 %`. A display value is the exact value correctly rounded to 4 significant figures, in decimals from 0.001 up to 10,000 and in e-notation outside that range (`9.757e-5`). A unit test checks the rounding on 10,000 values, and the conformance test checks that every `*_display` field matches its exact value. The prompt asks the model to quote display values and to give exact values when the user asks for them. Rounding stays with the server: in round 3 of the evaluation the model rounded 0.8516333 to 0.8517 by itself.
 
 ## Runs that do not converge
 

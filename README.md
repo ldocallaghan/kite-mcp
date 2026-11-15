@@ -132,7 +132,7 @@ Resources: each model's KITE help page (`kite://models/{id}/documentation`) and 
 
 ## The result contract
 
-1. **Exactly KITE's numbers.** Every number equals what a direct call to KITE returns for the same inputs, bit for bit. The only numbers kite-mcp computes are named `*_derived`: the welfare percentage `(welfare_change - 1) * 100` and the differences of `compare_runs`.
+1. **Exactly KITE's numbers.** Every number equals what a direct call to KITE returns for the same inputs, bit for bit. The only numbers kite-mcp computes are named `*_derived` or `*_display`. The derived ones are the welfare percentage `(welfare_change - 1) * 100` and the differences of `compare_runs`. Next to every exact number, a `*_display` field gives it to 4 significant figures, and for a ratio a `*_percent_display` field gives the percentage change. The prompt asks the model to quote the display values; the exact values stay in the same response.
 2. **No unconverged result is presented as a result.** If KITE's `info$convergence` is not TRUE, the status is `not_converged` and the response gives the criterion, the iterations and KITE's accounting reason, and no headline. `get_table` still returns the tables with every row flagged `unconverged`; `compare_runs` refuses the run.
 3. **Warnings are never dropped.** Every R warning comes back with its class and message.
 4. **Provenance on every run:** KITE version and commit, the R version and packages, model, baseline id and hash, scenario, resolved settings, convergence, the kite-mcp version and the time.

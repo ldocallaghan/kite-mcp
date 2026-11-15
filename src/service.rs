@@ -3,7 +3,7 @@
 
 use crate::baseline::{self, Baseline, Source};
 use crate::catalogue::{self, ModelInfo, TableInfo};
-use crate::num::Num;
+use crate::num::{Num, display4, percent_display};
 use crate::protocol::{
     ColumnData, Condition, Hello, InitialConditions, NamedTable, SolveParams, SolveResult, Table,
     Value, value_as_bool, value_as_f64, value_as_i64, value_as_string,
@@ -404,6 +404,11 @@ pub struct AccountingOut {
     pub world_value_added: Option<Num>,
     pub tolerance: Option<Num>,
     pub reason: Option<String>,
+    /// The four numbers above to 4 significant figures, for quoting
+    pub world_trade_balance_display: Option<String>,
+    pub baseline_world_trade_balance_display: Option<String>,
+    pub world_value_added_display: Option<String>,
+    pub tolerance_display: Option<String>,
 }
 
 /// KITE's `info` block, as returned by update_equilibrium().
@@ -414,13 +419,19 @@ pub struct InfoOut {
     pub criterion: Option<Num>,
     pub iterations: Option<i64>,
     pub elapsed_seconds: Option<Num>,
+    /// criterion to 4 significant figures, for quoting
+    pub criterion_display: Option<String>,
+    pub elapsed_seconds_display: Option<String>,
     pub accounting: AccountingOut,
 }
 
 fn info_out(r: &SolveResult) -> InfoOut {
     let i = &r.info;
     let a = &i.accounting;
+    let disp = |v: &Option<crate::protocol::Value>| value_as_f64(v).map(display4);
     InfoOut {
+        criterion_display: disp(&i.criterion),
+        elapsed_seconds_display: disp(&i.elapsed_seconds),
         convergence: value_as_bool(&i.convergence),
         criterion: value_as_f64(&i.criterion).map(Num),
         iterations: value_as_i64(&i.iterations),
@@ -433,6 +444,10 @@ fn info_out(r: &SolveResult) -> InfoOut {
             world_value_added: value_as_f64(&a.world_value_added).map(Num),
             tolerance: value_as_f64(&a.tolerance).map(Num),
             reason: value_as_string(&a.reason),
+            world_trade_balance_display: disp(&a.world_trade_balance),
+            baseline_world_trade_balance_display: disp(&a.baseline_world_trade_balance),
+            world_value_added_display: disp(&a.world_value_added),
+            tolerance_display: disp(&a.tolerance),
         },
     }
 }
@@ -499,6 +514,10 @@ pub struct WelfareRow {
     pub welfare_change: Num,
     /// Derived by kite-mcp: (welfare_change - 1) * 100
     pub percent_change_derived: Num,
+    /// welfare_change to 4 significant figures, for quoting
+    pub welfare_change_display: String,
+    /// The percentage change, (welfare_change - 1) * 100, to 4 significant figures
+    pub percent_change_display: String,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -589,9 +608,11 @@ fn welfare_headline(r: &SolveResult) -> Option<Headline> {
                 country: c.clone().unwrap_or_default(),
                 welfare_change: Num(v),
                 percent_change_derived: Num((v - 1.0) * 100.0),
+                welfare_change_display: display4(v),
+                percent_change_display: percent_display(v),
             })
             .collect(),
-        note: "welfare_change is exactly the value KITE's process_results() returns (R/process_results.R:345). percent_change_derived is computed by kite-mcp as (welfare_change - 1) * 100.",
+        note: "welfare_change is exactly the value KITE's process_results() returns (R/process_results.R:345). percent_change_derived is computed by kite-mcp as (welfare_change - 1) * 100. The *_display fields give the same numbers to 4 significant figures, for quoting.",
     })
 }
 
@@ -831,6 +852,7 @@ pub struct GetTableOutput {
     pub matching_rows: usize,
     pub returned_rows: usize,
     pub truncated: bool,
+    /// Each row has the exact values and, for every double column, `<column>_display` (4 significant figures) and for ratio tables `<column>_percent_display` (the percentage change)
     pub rows: Vec<serde_json::Map<String, serde_json::Value>>,
     pub baseline_synthetic: bool,
 }
@@ -924,6 +946,33 @@ fn check_limit(limit: Option<usize>) -> Result<usize, ToolError> {
     Ok(l)
 }
 
+/// A column whose values are ratios of counterfactual to baseline, which
+/// gets a percentage display as well.
+fn is_ratio_column(table: &str, column: &str) -> bool {
+    catalogue::table_info(table).kind == "ratio"
+        && (column == "value" || column == "welfare_change")
+}
+
+/// Display values for one double: `<name>_display`, and for a ratio also
+/// `<name>_percent_display`.
+fn insert_display(
+    row: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+    x: f64,
+    ratio: bool,
+) {
+    row.insert(
+        format!("{name}_display"),
+        serde_json::Value::String(display4(x)),
+    );
+    if ratio {
+        row.insert(
+            format!("{name}_percent_display"),
+            serde_json::Value::String(percent_display(x)),
+        );
+    }
+}
+
 pub async fn get_table(app: &App, input: GetTableInput) -> Result<GetTableOutput, ToolError> {
     let r = app.run(&input.run_id).await?;
     let limit = check_limit(input.limit)?;
@@ -935,12 +984,30 @@ pub async fn get_table(app: &App, input: GetTableInput) -> Result<GetTableOutput
         for c in &t.columns {
             row.insert(c.name.clone(), cell_json(&c.data, i));
         }
+        for c in &t.columns {
+            if let ColumnData::Double(v) = &c.data {
+                insert_display(
+                    &mut row,
+                    &c.name,
+                    v[i].0,
+                    is_ratio_column(&input.table, &c.name),
+                );
+            }
+        }
         if !r.converged {
             row.insert("unconverged".into(), serde_json::Value::Bool(true));
         }
         rows.push(row);
     }
     let mut columns: Vec<String> = t.columns.iter().map(|c| c.name.clone()).collect();
+    for c in &t.columns {
+        if matches!(c.data, ColumnData::Double(_)) {
+            columns.push(format!("{}_display", c.name));
+            if is_ratio_column(&input.table, &c.name) {
+                columns.push(format!("{}_percent_display", c.name));
+            }
+        }
+    }
     if !r.converged {
         columns.push("unconverged".into());
     }
@@ -993,7 +1060,7 @@ pub struct CompareRunsOutput {
     pub matching_rows: usize,
     pub returned_rows: usize,
     pub truncated: bool,
-    /// Rows with value_a and value_b exactly as KITE computed them, and difference_derived = value_b - value_a computed by kite-mcp
+    /// Rows with value_a and value_b exactly as KITE computed them, difference_derived = value_b - value_a computed by kite-mcp, and *_display fields giving these to 4 significant figures (for a ratio table, value_a and value_b also as percentage changes)
     pub rows: Vec<serde_json::Map<String, serde_json::Value>>,
     /// Dimension keys present in one run only
     pub unmatched: Vec<String>,
@@ -1060,6 +1127,10 @@ pub async fn compare_runs(
                         "difference_derived".into(),
                         serde_json::to_value(Num(vb[j] - va[i])).unwrap(),
                     );
+                    let ratio = is_ratio_column(&input.table, "value");
+                    insert_display(&mut row, "value_a", va[i], ratio);
+                    insert_display(&mut row, "value_b", vb[j], ratio);
+                    insert_display(&mut row, "difference", vb[j] - va[i], false);
                     rows.push(row);
                 }
             }

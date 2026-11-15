@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
-pub const INSTRUCTIONS: &str = "kite-mcp runs trade policy scenarios in KITE, the Kiel Institute's open-source trade model suite, through an independent and unofficial interface. Every number in a tool result is exactly what KITE computes, except fields whose names end in _derived. Quote numbers only as they appear in tool results and say which tool and table each comes from; do not compute sums, shares or ratios yourself. If run_scenario returns status not_converged there is no result: say so and give no figures. Report every warning. The baselines are synthetic: they describe no real economy, so do not present any figure as a real-world estimate. Each run comes with an R script that reproduces it without this server; give the user its resource URI.";
+pub const INSTRUCTIONS: &str = "kite-mcp runs trade policy scenarios in KITE, the Kiel Institute's open-source trade model suite, through an independent and unofficial interface. Every number in a tool result is exactly what KITE computes, except fields whose names end in _derived or _display. Each exact number comes with a _display field giving it to 4 significant figures, and for ratios a _percent_display with the percentage change; quote the display values, and the exact ones only when asked. Quote numbers only as they appear in tool results and say which tool and table each comes from; do not compute sums, shares or ratios yourself. If run_scenario returns status not_converged there is no result: say so and give no figures. Report every warning. The baselines are synthetic: they describe no real economy, so do not present any figure as a real-world estimate. Each run comes with an R script that reproduces it without this server; give the user its resource URI.";
 
 #[derive(Clone)]
 pub struct KiteMcp {
@@ -51,19 +51,19 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "run_scenario",
         title: "Run a KITE scenario",
-        description: "Run one scenario in KITE: update_equilibrium() then process_results(). Returns status (converged or not_converged), KITE's info block, every warning with its R class, the welfare change by country (only when converged), provenance and an R script that reproduces the run without this server. Numbers are exactly KITE's; fields ending in _derived are computed by kite-mcp. welfare_change is a ratio of counterfactual to baseline: below 1 is a fall, 1 means no change. If status is not_converged there is no result: report that, quote the reason, and give no welfare or other figures. Scenario variables use KITE's names; tariff_new is a gross factor (1.2 = 20 % tariff) set by the destination on imports from the origin, and cells not listed keep their baseline value. A variable the chosen model does not read is refused with a message saying which models read it. Quote only numbers that tool results contain; do not compute totals, shares or ratios yourself.",
+        description: "Run one scenario in KITE: update_equilibrium() then process_results(). Returns status (converged or not_converged), KITE's info block, every warning with its R class, the welfare change by country (only when converged), provenance and an R script that reproduces the run without this server. Numbers are exactly KITE's; fields ending in _derived are computed by kite-mcp, and every exact number has a _display field (4 significant figures; for ratios also the percentage change) to quote. welfare_change is a ratio of counterfactual to baseline: below 1 is a fall, 1 means no change. If status is not_converged there is no result: report that, quote the reason, and give no welfare or other figures. Scenario variables use KITE's names; tariff_new is a gross factor (1.2 = 20 % tariff) set by the destination on imports from the origin, and cells not listed keep their baseline value. A variable the chosen model does not read is refused with a message saying which models read it. Quote only numbers that tool results contain; do not compute totals, shares or ratios yourself.",
         schema: schema::<service::RunScenarioInput>,
     },
     ToolDef {
         name: "get_table",
         title: "Get a result table",
-        description: "One process_results() table of a run, filtered by country, sector, origin or destination, with its unit and meaning. Tables named *_change are ratios of counterfactual to baseline (1 = no change). If the run did not converge, every row is flagged unconverged and is not a result. Check truncated and raise limit if needed. Quote values as returned; do not sum or divide rows yourself.",
+        description: "One process_results() table of a run, filtered by country, sector, origin or destination, with its unit and meaning. Tables named *_change are ratios of counterfactual to baseline (1 = no change). If the run did not converge, every row is flagged unconverged and is not a result. Check truncated and raise limit if needed. Each double column has a <column>_display field (4 significant figures) and, for ratio tables, <column>_percent_display (the percentage change); quote those. Quote values as returned; do not sum or divide rows yourself.",
         schema: schema::<service::GetTableInput>,
     },
     ToolDef {
         name: "compare_runs",
         title: "Compare two runs",
-        description: "Compare one table between two converged runs on matching rows: value_a and value_b exactly as KITE computed them, and difference_derived = value_b - value_a computed by kite-mcp. Use it, for example, for a tariff war with and without a carbon tax. Refuses runs that did not converge.",
+        description: "Compare one table between two converged runs on matching rows: value_a and value_b exactly as KITE computed them, and difference_derived = value_b - value_a computed by kite-mcp, each with a _display field to quote (4 significant figures; for ratio tables value_a and value_b also as percentage changes). Use it, for example, for a tariff war with and without a carbon tax. Refuses runs that did not converge.",
         schema: schema::<service::CompareRunsInput>,
     },
 ];
@@ -198,8 +198,8 @@ pub fn prompt_text(question: &str) -> String {
          2. Otherwise call list_models and choose the model whose scenario variables express the policy. Use describe_baseline to see the countries and sectors.
          3. Run only the scenarios the question asks for. If it compares policies, run each and use compare_runs for the differences. Do not add reference runs of your own, such as an empty scenario, when the question does not ask for a comparison.
          4. Report convergence first: the status, the iterations and the criterion. If the status is not_converged, say that KITE did not converge, quote the accounting reason, and give no welfare or other figures.
-         5. The numbers in your answer are values from result tables and the info block, copied exactly as the tool returned them, with all their digits and without rounding, and with the tool and table each comes from. Do not repeat other numbers found in tool results: cite no file names or line numbers, and no numbers from citations. Do not compute numbers yourself: no sums, totals, shares, ratios or differences that a tool did not return. If the question needs a quantity that no table holds, say so and give the closest table instead. Fields ending in _derived are computed by kite-mcp; say they are derived.
-         6. welfare_change and every *_change table are ratios of counterfactual to baseline, so a value below 1 is a fall and 1 means no change. Write numbers as decimals or in e-notation such as 9.97e-05.
+         5. The numbers in your answer are the display values that tool results give next to each exact number: fields ending in _display, with 4 significant figures, and for ratios fields ending in _percent_display, with the percentage change. Copy them as given, without rounding them further, and name the tool and table each comes from. Give the exact values, the fields without _display, only if the user asks for them. Percentages are computed by kite-mcp; say they are derived. Do not repeat other numbers found in tool results: cite no file names or line numbers, and no numbers from citations. Do not compute numbers yourself: no sums, totals, shares, ratios or differences that a tool did not return. If the question needs a quantity that no table holds, say so and give the closest table instead. Fields ending in _derived are computed by kite-mcp; say they are derived.
+         6. welfare_change and every *_change table are ratios of counterfactual to baseline, so a value below 1 is a fall and 1 means no change. Write numbers as the display fields give them, as decimals or in e-notation such as 9.757e-5.
          7. Report every warning KITE raised by its class and stage, and the accounting fields from the info block. Do not restate the numbers inside a warning message.
          8. State that the baseline is synthetic and describes no real economy, and pass on the baseline note that run_scenario returns as a caveat, in words.
          9. End with the reproduce script's resource URI (kite://runs/<run_id>/reproduce.R), which reruns the scenario in R without this server."
@@ -422,7 +422,7 @@ mod tests {
     fn the_prompt_asks_for_convergence_sources_and_the_script() {
         let p = prompt_text("What does a tariff war do?");
         assert!(p.contains("not_converged"));
-        assert!(p.contains("values from result tables and the info block"));
+        assert!(p.contains("the display values that tool results give"));
         assert!(p.contains("Run only the scenarios the question asks for"));
         assert!(p.contains("Do not compute numbers yourself"));
         assert!(p.contains("Do not run a stand-in scenario"));

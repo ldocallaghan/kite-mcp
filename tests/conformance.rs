@@ -5,7 +5,7 @@
 //! Needs R with KITE at the pinned commit. Runs when KITE_MCP_CONFORMANCE=1;
 //! otherwise each test returns at once.
 
-use kite_mcp::num::{f64_to_hex, hex_to_f64, is_r_na, shortest_decimal};
+use kite_mcp::num::{display4, f64_to_hex, hex_to_f64, is_r_na, percent_display, shortest_decimal};
 use kite_mcp::reproduce::r_hex_literal;
 use rmcp::model::{CallToolRequestParams, ReadResourceRequestParams, ResourceContents};
 use rmcp::service::RunningService;
@@ -172,11 +172,30 @@ fn compare_table(case: &str, name: &str, got: &Value, reference: &Value) -> usiz
         for (i, rv) in col["values"].as_array().unwrap().iter().enumerate() {
             let gv = &rows[i][cname];
             match ty {
-                "double" => assert_eq!(
-                    client_bits(gv),
-                    ref_bits(rv.as_str().unwrap()),
-                    "{case}/{name} row {i} column {cname}"
-                ),
+                "double" => {
+                    assert_eq!(
+                        client_bits(gv),
+                        ref_bits(rv.as_str().unwrap()),
+                        "{case}/{name} row {i} column {cname}"
+                    );
+                    let x = hex_to_f64(rv.as_str().unwrap()).unwrap();
+                    assert_eq!(
+                        rows[i][format!("{cname}_display")],
+                        display4(x),
+                        "{case}/{name} row {i} {cname}_display"
+                    );
+                    let ratio = kite_mcp::catalogue::table_info(name).kind == "ratio"
+                        && (cname == "value" || cname == "welfare_change");
+                    if ratio {
+                        assert_eq!(
+                            rows[i][format!("{cname}_percent_display")],
+                            percent_display(x),
+                            "{case}/{name} row {i} {cname}_percent_display"
+                        );
+                    } else {
+                        assert!(rows[i].get(format!("{cname}_percent_display")).is_none());
+                    }
+                }
                 _ => assert_eq!(gv, rv, "{case}/{name} row {i} column {cname}"),
             }
             cells += 1;
@@ -455,6 +474,8 @@ async fn every_table_equals_a_direct_kite_call_and_every_script_reproduces_it() 
                     client_bits(&row["percent_change_derived"]),
                     f64_to_hex((x - 1.0) * 100.0)
                 );
+                assert_eq!(row["welfare_change_display"], display4(x));
+                assert_eq!(row["percent_change_display"], percent_display(x));
             }
         }
 

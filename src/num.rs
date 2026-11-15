@@ -107,6 +107,36 @@ impl JsonSchema for Num {
     }
 }
 
+/// `x` to 4 significant figures, for display. Values from 0.001 up to
+/// 10,000 are written as decimals, others in e-notation (`9.757e-5`).
+/// Non-finite values keep their labels.
+pub fn display4(x: f64) -> String {
+    if let Some(l) = Num(x).label() {
+        return l.to_string();
+    }
+    if x == 0.0 {
+        return "0".into();
+    }
+    // the exponent after rounding to 4 significant figures, so that 9.9996 counts as 10
+    let sci = format!("{x:.3e}");
+    let e: i32 = sci
+        .split_once('e')
+        .and_then(|(_, e)| e.parse().ok())
+        .unwrap_or(0);
+    if !(-3..4).contains(&e) {
+        sci
+    } else {
+        let decimals = (3 - e).max(0) as usize;
+        format!("{x:.decimals$}")
+    }
+}
+
+/// The percentage change a ratio stands for, `(ratio - 1) * 100`, to 4
+/// significant figures, with a percent sign.
+pub fn percent_display(ratio: f64) -> String {
+    format!("{} %", display4((ratio - 1.0) * 100.0))
+}
+
 /// Shortest decimal that parses back to `x` in Rust, written so that R also
 /// reads it as a numeric literal (for example `1.2`, `200.0`, `1e-10`).
 /// Whether R's parser returns the same bits is checked by the conformance
@@ -173,6 +203,52 @@ mod tests {
             let json = serde_json::to_string(&Num(x)).unwrap();
             let back: f64 = serde_json::from_str(&json).unwrap();
             assert_eq!(back.to_bits(), x.to_bits(), "{json}");
+        }
+    }
+
+    #[test]
+    fn display_values_have_four_significant_figures() {
+        assert_eq!(display4(0.8516332754471132), "0.8516");
+        assert_eq!(display4(1.1449932563292378), "1.145");
+        assert_eq!(display4(490.26744994553644), "490.3");
+        assert_eq!(display4(1234.56), "1235");
+        assert_eq!(display4(12345.6), "1.235e4");
+        assert_eq!(display4(9.757295662195745e-5), "9.757e-5");
+        assert_eq!(display4(0.0012345), "0.001234");
+        assert_eq!(display4(9.99996), "10.00");
+        assert_eq!(display4(-1.0233699636502482), "-1.023");
+        assert_eq!(display4(0.0), "0");
+        assert_eq!(display4(f64::NAN), "NaN");
+        assert_eq!(percent_display(0.8516332754471132), "-14.84 %");
+        assert_eq!(percent_display(1.1449932563292378), "14.50 %");
+        assert_eq!(percent_display(1.0), "0 %");
+    }
+
+    #[test]
+    fn display_values_round_correctly() {
+        // every display value is within half a unit in its last place of the exact value
+        let mut state: u64 = 0x0123_4567_89ab_cdef;
+        for _ in 0..10_000 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let x = (state % 2_000_000) as f64 / 1_000_000.0 + 1e-9;
+            let s = display4(x);
+            let shown: f64 = s.parse().unwrap();
+            let (mantissa, exp) = match s.split_once('e') {
+                Some((m, e)) => (m.to_string(), e.parse::<i32>().unwrap()),
+                None => (s.clone(), 0),
+            };
+            let decimals = mantissa.split_once('.').map(|(_, d)| d.len()).unwrap_or(0) as i32;
+            let digits = mantissa
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>();
+            assert_eq!(digits.trim_start_matches('0').len(), 4, "{s}");
+            assert!(
+                (shown - x).abs() <= 0.5 * 10f64.powi(exp - decimals) * (1.0 + 1e-9),
+                "{x} {s}"
+            );
         }
     }
 
