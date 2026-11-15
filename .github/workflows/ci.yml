@@ -54,6 +54,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo run --example score_eval -- score eval
+      - run: cargo run --example score_eval -- score eval/heldout
 
   docker:
     name: Docker image
