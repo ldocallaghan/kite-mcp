@@ -174,10 +174,28 @@ kite_mcp_solve <- function(params) {
   )
 }
 
+# Plain-text help page of one of a fixed set of KITE topics.
+kite_mcp_doc_topics <- c("KITE-package", "caliendo_parro_2015", "chowdhry_hinz_kamin_wanner_2022",
+                         "mahlkow_wanner_2021", "update_equilibrium", "process_results",
+                         "update_trade_balance")
+
+kite_mcp_documentation <- function(params) {
+  topic <- params$topic
+  if (!is.character(topic) || length(topic) != 1L || !topic %in% kite_mcp_doc_topics) {
+    kite_mcp_protocol_error(sprintf("`topic` must be one of %s", paste(kite_mcp_doc_topics, collapse = ", ")))
+  }
+  db <- tools::Rd_db("KITE")
+  rd <- db[[paste0(topic, ".Rd")]]
+  if (is.null(rd)) kite_mcp_protocol_error(sprintf("KITE has no help page `%s`", topic))
+  text <- utils::capture.output(tools::Rd2txt(rd, options = list(underline_titles = FALSE)))
+  list(topic = topic, text = paste(text, collapse = "\n"))
+}
+
 kite_mcp_methods <- list(
   hello = kite_mcp_hello,
   synthetic_baseline = kite_mcp_synthetic,
-  solve = kite_mcp_solve
+  solve = kite_mcp_solve,
+  documentation = kite_mcp_documentation
 )
 
 # ---- loop --------------------------------------------------------------------

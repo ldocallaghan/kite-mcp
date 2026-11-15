@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+csv = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 rmcp = { version = "3.10", features = ["server", "transport-io", "schemars"] }
 schemars = "1"
