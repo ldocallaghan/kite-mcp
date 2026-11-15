@@ -30,7 +30,7 @@ enum Cmd {
     },
 }
 
-#[derive(clap::Args, Default)]
+#[derive(clap::Args)]
 struct ServeArgs {
     /// A baseline read from a directory of CSV files, as ID=DIRECTORY; repeatable
     #[arg(long = "baseline-dir", value_name = "ID=DIRECTORY")]
@@ -38,6 +38,12 @@ struct ServeArgs {
     /// Longest time one solve may take, in seconds, before the worker is restarted
     #[arg(long, default_value_t = 120)]
     timeout_seconds: u64,
+    /// Serve the REST interface over HTTP in place of MCP on stdio
+    #[arg(long)]
+    http: bool,
+    /// Address for --http
+    #[arg(long, default_value = "127.0.0.1:8080")]
+    addr: std::net::SocketAddr,
 }
 
 async fn build_app(args: &ServeArgs) -> anyhow::Result<Arc<App>> {
@@ -67,18 +73,22 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
     let cli = Cli::parse();
-    match cli.command.unwrap_or(Cmd::Serve(ServeArgs {
-        timeout_seconds: 120,
-        ..Default::default()
-    })) {
+    let command = cli
+        .command
+        .unwrap_or_else(|| Cli::parse_from(["kite-mcp", "serve"]).command.unwrap());
+    match command {
         Cmd::Doctor { timeout_seconds } => {
             let code = kite_mcp::doctor::run(Duration::from_secs(timeout_seconds)).await;
             std::process::exit(code);
         }
         Cmd::Serve(args) => {
             let app = build_app(&args).await?;
-            let service = KiteMcp { app }.serve(rmcp::transport::stdio()).await?;
-            service.waiting().await?;
+            if args.http {
+                kite_mcp::http::serve(app, args.addr).await?;
+            } else {
+                let service = KiteMcp { app }.serve(rmcp::transport::stdio()).await?;
+                service.waiting().await?;
+            }
         }
     }
     Ok(())

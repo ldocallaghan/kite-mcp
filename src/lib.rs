@@ -5,6 +5,7 @@
 pub mod baseline;
 pub mod catalogue;
 pub mod doctor;
+pub mod http;
 pub mod mcp;
 pub mod num;
 pub mod protocol;
