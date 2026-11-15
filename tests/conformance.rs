@@ -370,6 +370,14 @@ async fn every_table_equals_a_direct_kite_call_and_every_script_reproduces_it() 
             );
         }
 
+        // synthetic baselines carry the note; the CSV baseline does not
+        assert_eq!(
+            out.get("baseline_note").is_some(),
+            case.id != "csv_cp",
+            "{}: baseline note",
+            case.id
+        );
+
         // warnings: same classes and messages as the direct call, none dropped
         let ref_w = r.get("warnings").cloned().unwrap_or(json!([]));
         assert_eq!(
@@ -453,6 +461,13 @@ async fn every_table_equals_a_direct_kite_call_and_every_script_reproduces_it() 
         // the reproduce script, run in a fresh R session, gives the same bits
         let script = read(&client, &format!("kite://runs/{run_id}/reproduce.R")).await;
         assert_eq!(script, out["reproduce"]["script"].as_str().unwrap());
+        if case.id == "csv_cp" {
+            assert!(
+                script.contains("as.numeric(c(\"0x"),
+                "the CSV script writes its tables as hexadecimal literals"
+            );
+            assert!(script.contains("data from CSV files"));
+        }
         if case.id == "awkward_literal_mw" {
             assert!(
                 script.contains("carbon_tax <- 0x1.a8af0b45d9531p-8"),

@@ -360,6 +360,18 @@ pub fn table_info(name: &str) -> TableInfo {
             format!("Solver {name} as returned in the results."),
             "R/update_equilibrium.R:146-150",
         ),
+        "exports" | "exports_new" | "imports" | "imports_new" => (
+            if name.ends_with("_new") { "level_counterfactual" } else { "level_baseline" },
+            money,
+            format!("{} by country, excluding tariffs. It sums trade_flow_fob over every partner including the country itself, so it contains the country's purchases from its own producers (domestic trade).", if name.starts_with("exports") { "Sales" } else { "Purchases" }),
+            "R/process_results.R:205-212",
+        ),
+        "exports_change" | "imports_change" => (
+            "ratio",
+            "ratio of counterfactual to baseline, 1 = no change",
+            format!("{} divided by its baseline. Both include domestic trade (the country with itself), see R/process_results.R:205-212.", name.trim_end_matches("_change")),
+            "R/process_results.R:205-212",
+        ),
         n if n.ends_with("_change") => (
             "ratio",
             "ratio of counterfactual to baseline, 1 = no change",

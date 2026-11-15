@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
-pub const INSTRUCTIONS: &str = "kite-mcp runs trade policy scenarios in KITE, the Kiel Institute's open-source trade model suite, through an independent and unofficial interface. Every number in a tool result is exactly what KITE computes, except fields whose names end in _derived. Quote numbers only from tool results and say which tool and table each comes from. If run_scenario returns status not_converged there is no result: say so and give no figures. Report every warning. The baselines are synthetic: they describe no real economy, so do not present any figure as a real-world estimate. Each run comes with an R script that reproduces it without this server; give the user its resource URI.";
+pub const INSTRUCTIONS: &str = "kite-mcp runs trade policy scenarios in KITE, the Kiel Institute's open-source trade model suite, through an independent and unofficial interface. Every number in a tool result is exactly what KITE computes, except fields whose names end in _derived. Quote numbers only as they appear in tool results and say which tool and table each comes from; do not compute sums, shares or ratios yourself. If run_scenario returns status not_converged there is no result: say so and give no figures. Report every warning. The baselines are synthetic: they describe no real economy, so do not present any figure as a real-world estimate. Each run comes with an R script that reproduces it without this server; give the user its resource URI.";
 
 #[derive(Clone)]
 pub struct KiteMcp {
@@ -51,13 +51,13 @@ const TOOLS: &[ToolDef] = &[
     ToolDef {
         name: "run_scenario",
         title: "Run a KITE scenario",
-        description: "Run one scenario in KITE: update_equilibrium() then process_results(). Returns status (converged or not_converged), KITE's info block, every warning with its R class, the welfare change by country (only when converged), provenance and an R script that reproduces the run without this server. Numbers are exactly KITE's; fields ending in _derived are computed by kite-mcp. welfare_change is a ratio: 0.98 is a 2 % fall. If status is not_converged there is no result: report that, quote the reason, and give no welfare or other figures. Scenario variables use KITE's names; tariff_new is a gross factor (1.2 = 20 % tariff) set by the destination on imports from the origin, and cells not listed keep their baseline value. A variable the chosen model does not read is refused with a message saying which models read it.",
+        description: "Run one scenario in KITE: update_equilibrium() then process_results(). Returns status (converged or not_converged), KITE's info block, every warning with its R class, the welfare change by country (only when converged), provenance and an R script that reproduces the run without this server. Numbers are exactly KITE's; fields ending in _derived are computed by kite-mcp. welfare_change is a ratio: 0.98 is a 2 % fall. If status is not_converged there is no result: report that, quote the reason, and give no welfare or other figures. Scenario variables use KITE's names; tariff_new is a gross factor (1.2 = 20 % tariff) set by the destination on imports from the origin, and cells not listed keep their baseline value. A variable the chosen model does not read is refused with a message saying which models read it. Quote only numbers that tool results contain; do not compute totals, shares or ratios yourself.",
         schema: schema::<service::RunScenarioInput>,
     },
     ToolDef {
         name: "get_table",
         title: "Get a result table",
-        description: "One process_results() table of a run, filtered by country, sector, origin or destination, with its unit and meaning. Tables named *_change are ratios of counterfactual to baseline (1 = no change). If the run did not converge, every row is flagged unconverged and is not a result. Check truncated and raise limit if needed.",
+        description: "One process_results() table of a run, filtered by country, sector, origin or destination, with its unit and meaning. Tables named *_change are ratios of counterfactual to baseline (1 = no change). If the run did not converge, every row is flagged unconverged and is not a result. Check truncated and raise limit if needed. Quote values as returned; do not sum or divide rows yourself.",
         schema: schema::<service::GetTableInput>,
     },
     ToolDef {
@@ -191,15 +191,18 @@ pub const PROMPT_NAME: &str = "analyse_trade_policy_scenario";
 
 pub fn prompt_text(question: &str) -> String {
     format!(
-        "Analyse this trade policy question with the kite-mcp tools: {question}\n\n\
-         Work as follows.\n\
-         1. Call list_models and choose the model whose scenario variables express the policy. Use describe_baseline to see the countries and sectors.\n\
-         2. Run the scenario with run_scenario, and a reference scenario if the question compares policies; use compare_runs for differences.\n\
-         3. Report convergence first: the status, the iterations and the criterion. If the status is not_converged, say that KITE did not converge, quote the reason, and give no welfare or other figures.\n\
-         4. Quote numbers only from tool results, and name the tool and table each number comes from. welfare_change and every *_change table are ratios of counterfactual to baseline, so 0.98 is a 2 % fall. Say when a percentage is derived.\n\
-         5. Report every warning KITE raised.\n\
-         6. State that the baseline is synthetic and describes no real economy. If the question asks about real countries or real-world magnitudes, say that this server holds synthetic data only and cannot answer that.\n\
-         7. End with the reproduce script's resource URI (kite://runs/<run_id>/reproduce.R), which reruns the scenario in R without this server."
+        "Analyse this trade policy question with the kite-mcp tools: {question}
+
+         Work as follows.
+         1. If the question asks about real countries or real-world magnitudes, say that this server holds synthetic data only and cannot answer it. Do not run a stand-in scenario with synthetic countries in place of real ones, and give no figures.
+         2. Otherwise call list_models and choose the model whose scenario variables express the policy. Use describe_baseline to see the countries and sectors.
+         3. Run the scenario with run_scenario, and a reference scenario if the question compares policies; use compare_runs for differences.
+         4. Report convergence first: the status, the iterations and the criterion. If the status is not_converged, say that KITE did not converge, quote the accounting reason, and give no welfare or other figures.
+         5. Quote numbers only as they appear in tool results, and name the tool and table each number comes from. Do not compute numbers yourself: no sums, totals, shares, ratios or differences that a tool did not return. If the question needs a quantity that no table holds, say so and give the closest table instead. Fields ending in _derived are computed by kite-mcp; say they are derived.
+         6. welfare_change and every *_change table are ratios of counterfactual to baseline, so 0.98 is a 2 % fall. Write numbers as decimals or in e-notation such as 9.97e-05.
+         7. Report every warning KITE raised by its class and stage, and the accounting fields from the info block. Do not restate the numbers inside a warning message.
+         8. State that the baseline is synthetic and describes no real economy, and pass on the baseline note that run_scenario returns.
+         9. End with the reproduce script's resource URI (kite://runs/<run_id>/reproduce.R), which reruns the scenario in R without this server."
     )
 }
 
@@ -419,7 +422,9 @@ mod tests {
     fn the_prompt_asks_for_convergence_sources_and_the_script() {
         let p = prompt_text("What does a tariff war do?");
         assert!(p.contains("not_converged"));
-        assert!(p.contains("Quote numbers only from tool results"));
+        assert!(p.contains("Quote numbers only as they appear in tool results"));
+        assert!(p.contains("Do not compute numbers yourself"));
+        assert!(p.contains("Do not run a stand-in scenario"));
         assert!(p.contains("reproduce.R"));
         assert!(p.contains("synthetic data only"));
     }

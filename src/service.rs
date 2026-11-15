@@ -21,6 +21,10 @@ use tokio::sync::RwLock;
 pub const KITE_MCP_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const SYNTHETIC_EXAMPLE: &str = "synthetic_example";
 pub const DEFAULT_ROW_LIMIT: usize = 100;
+
+/// Shown with every synthetic baseline and every run on one. It carries no
+/// figures; DESIGN.md gives the measurements behind it.
+pub const SYNTHETIC_NOTE: &str = "Synthetic data generated from random draws, as in KITE's inst/examples/example.R. It describes no real economy, and its numbers have no real-world units. The construction draws value added independently of the trade and production shares, so the baseline is not an equilibrium of the models: a run with an empty scenario does not give welfare_change = 1, and every run's results include this adjustment of the baseline as well as the policy.";
 pub const MAX_ROW_LIMIT: usize = 10_000;
 
 // ---- errors ------------------------------------------------------------------
@@ -263,7 +267,7 @@ pub enum DescribeBaselineOutput {
 fn describe(b: &Baseline) -> BaselineDescription {
     let mut notes = b.notes.clone();
     if b.synthetic {
-        notes.insert(0, "Synthetic data generated from random draws, as in KITE's inst/examples/example.R. It describes no real economy, and its numbers have no real-world units.".into());
+        notes.insert(0, SYNTHETIC_NOTE.into());
     }
     BaselineDescription {
         id: b.id.clone(),
@@ -484,7 +488,7 @@ pub struct Provenance {
     pub convergence: InfoOut,
     /// When the run was computed, UTC
     pub computed_at: String,
-    /// SHA-256 of (KITE commit, model, baseline hash, scenario, settings)
+    /// SHA-256 of (KITE commit, model, baseline id and hash, scenario, settings)
     pub cache_key: String,
 }
 
@@ -527,6 +531,9 @@ pub struct RunScenarioOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub not_converged: Option<String>,
     pub tables: Vec<String>,
+    /// Present for synthetic baselines
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub baseline_note: Option<&'static str>,
     pub provenance: Provenance,
     pub reproduce: Reproduce,
 }
@@ -535,6 +542,7 @@ fn cache_key(commit: &str, model: &str, b: &Baseline, built: &scenario::Built) -
     let v = serde_json::json!({
         "kite_commit": commit,
         "model": model,
+        "baseline_id": b.id,
         "baseline_hash": b.hash,
         "scenario": built.scenario.iter().map(|v| (v.name, &v.value)).collect::<Vec<_>>(),
         "settings": built.settings,
@@ -748,6 +756,11 @@ fn run_output(r: &Run, cached: bool) -> RunScenarioOutput {
         info,
         warnings: r.result.warnings.clone(),
         tables: r.result.tables.iter().map(|t| t.name.clone()).collect(),
+        baseline_note: if r.baseline.synthetic {
+            Some(SYNTHETIC_NOTE)
+        } else {
+            None
+        },
         provenance: r.provenance.clone(),
         reproduce: Reproduce {
             resource_uri: reproduce_uri(&r.id),
