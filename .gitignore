@@ -1,0 +1,5 @@
+/target
+*.Rout
+.Rhistory
+.RData
+/runs/
