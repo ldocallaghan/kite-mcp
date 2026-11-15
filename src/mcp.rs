@@ -196,12 +196,12 @@ pub fn prompt_text(question: &str) -> String {
          Work as follows.
          1. If the question asks about real countries or real-world magnitudes, say that this server holds synthetic data only and cannot answer it. Do not run a stand-in scenario with synthetic countries in place of real ones, and give no figures.
          2. Otherwise call list_models and choose the model whose scenario variables express the policy. Use describe_baseline to see the countries and sectors.
-         3. Run the scenario with run_scenario, and a reference scenario if the question compares policies; use compare_runs for differences.
+         3. Run only the scenarios the question asks for. If it compares policies, run each and use compare_runs for the differences. Do not add reference runs of your own, such as an empty scenario, when the question does not ask for a comparison.
          4. Report convergence first: the status, the iterations and the criterion. If the status is not_converged, say that KITE did not converge, quote the accounting reason, and give no welfare or other figures.
-         5. Quote numbers only as they appear in tool results, and name the tool and table each number comes from. Do not compute numbers yourself: no sums, totals, shares, ratios or differences that a tool did not return. If the question needs a quantity that no table holds, say so and give the closest table instead. Fields ending in _derived are computed by kite-mcp; say they are derived.
+         5. The numbers in your answer are values from result tables and the info block, quoted as they appear in tool results or rounded, with the tool and table each comes from. Do not repeat other numbers found in tool results, such as KITE source line references or the numbers in citations. Do not compute numbers yourself: no sums, totals, shares, ratios or differences that a tool did not return. If the question needs a quantity that no table holds, say so and give the closest table instead. Fields ending in _derived are computed by kite-mcp; say they are derived.
          6. welfare_change and every *_change table are ratios of counterfactual to baseline, so 0.98 is a 2 % fall. Write numbers as decimals or in e-notation such as 9.97e-05.
          7. Report every warning KITE raised by its class and stage, and the accounting fields from the info block. Do not restate the numbers inside a warning message.
-         8. State that the baseline is synthetic and describes no real economy, and pass on the baseline note that run_scenario returns.
+         8. State that the baseline is synthetic and describes no real economy, and pass on the baseline note that run_scenario returns as a caveat, in words.
          9. End with the reproduce script's resource URI (kite://runs/<run_id>/reproduce.R), which reruns the scenario in R without this server."
     )
 }
@@ -422,7 +422,8 @@ mod tests {
     fn the_prompt_asks_for_convergence_sources_and_the_script() {
         let p = prompt_text("What does a tariff war do?");
         assert!(p.contains("not_converged"));
-        assert!(p.contains("Quote numbers only as they appear in tool results"));
+        assert!(p.contains("values from result tables and the info block"));
+        assert!(p.contains("Run only the scenarios the question asks for"));
         assert!(p.contains("Do not compute numbers yourself"));
         assert!(p.contains("Do not run a stand-in scenario"));
         assert!(p.contains("reproduce.R"));
